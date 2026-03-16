@@ -23,6 +23,11 @@ const userSchema = new mongoose.Schema({
     default:"USER"
   },
 
+  refreshTokenHash: {
+    type: String,
+    select: false
+  },
+
   avatars: [
     {
       type: String

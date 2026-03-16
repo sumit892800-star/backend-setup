@@ -20,6 +20,7 @@ Thumbs.db
 # build folders
 dist/
 build/
+uploads/
 
 # coverage
 coverage/

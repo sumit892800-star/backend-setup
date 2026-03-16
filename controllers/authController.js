@@ -1,12 +1,16 @@
 const bcrypt = require("bcryptjs")
 const User = require("../models/User")
 const jwt = require("jsonwebtoken")
+const crypto = require("crypto")
 
 const {
   generateAccessToken,
   generateRefreshToken
 } = require("../utils/genearateTokens")
 
+const hashToken = (token) => {
+  return crypto.createHash("sha256").update(token).digest("hex")
+}
 exports.register = async (req,res,next)=>{
 
   try{
@@ -66,6 +70,9 @@ exports.login = async (req,res,next)=>{
     const accessToken = generateAccessToken(user)
     const refreshToken = generateRefreshToken(user)
 
+    user.refreshTokenHash = hashToken(refreshToken)
+    await user.save()
+
     res.cookie("refreshToken",refreshToken,{
       httpOnly:true,
       secure:false,
@@ -100,10 +107,17 @@ exports.refreshToken = async (req,res)=>{
       process.env.JWT_REFRESH_SECRET
     )
 
-    const user = await User.findById(decoded.id)
+    const user = await User.findById(decoded.id).select("+refreshTokenHash")
     if(!user){
       return res.status(401).json({
         message:"User not found"
+      })
+    }
+
+    const incomingHash = hashToken(token)
+    if(!user.refreshTokenHash || user.refreshTokenHash !== incomingHash){
+      return res.status(403).json({
+        message:"Invalid refresh token"
       })
     }
 

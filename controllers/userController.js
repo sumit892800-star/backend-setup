@@ -25,7 +25,10 @@ exports.createUser = async (req, res, next) => {
     })
 
     // clear cache
-    await redis.del("users")
+    const keys = await redis.keys("users:*")
+    if (keys.length > 0) {
+      await redis.del(keys)
+    }
 
     res.status(201).json({
       success: true,
@@ -44,7 +47,21 @@ exports.getUsers = async (req, res, next) => {
 
   try {
 
-    const cached = await redis.get("users")
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1)
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 100)
+    const skip = (page - 1) * limit
+
+    const filter = {}
+    if (req.query.role) {
+      filter.role = String(req.query.role).toUpperCase()
+    }
+    if (req.query.search) {
+      const regex = new RegExp(req.query.search, "i")
+      filter.$or = [{ name: regex }, { email: regex }]
+    }
+
+    const cacheKey = `users:page:${page}:limit:${limit}:role:${filter.role || "any"}:search:${req.query.search || "any"}`
+    const cached = await redis.get(cacheKey)
 
     if (cached) {
 
@@ -56,11 +73,23 @@ exports.getUsers = async (req, res, next) => {
 
     }
 
-    const users = await User.find()
+    const [users, total] = await Promise.all([
+      User.find(filter)
+        .select("-password")
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      User.countDocuments(filter)
+    ])
 
     await redis.set(
-      "users",
-      JSON.stringify(users),
+      cacheKey,
+      JSON.stringify({
+        items: users,
+        total,
+        page,
+        limit
+      }),
       "EX",
       60
     )
@@ -68,7 +97,12 @@ exports.getUsers = async (req, res, next) => {
     res.json({
       success: true,
       source: "db",
-      data: users
+      data: {
+        items: users,
+        total,
+        page,
+        limit
+      }
     })
 
   } catch (error) {
