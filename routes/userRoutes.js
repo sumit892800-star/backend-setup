@@ -1,9 +1,10 @@
 const express = require("express")
 
 const router = express.Router()
-const {createUser,getUsers} = require("../controllers/userController")
+const {createUser, getUsers, createUserJson} = require("../controllers/userController")
 const upload = require("../middlewares/uploads")
 const userSchema = require("../schemas/userSchems")
+const userJsonSchema = require("../schemas/userJsonSchema")
 const validate = require("../middlewares/validate")
 
 const auth = require("../middlewares/authMiddleware")
@@ -16,6 +17,15 @@ router.post(
    upload.array("avatars", 5), //upload.single("avatar"),
    validate(userSchema),
    createUser
+)
+
+//just to test json upload, with json body, not file upload+++++++
+router.post(
+  "/create-json",
+  auth,
+  role("ADMIN"),
+  validate(userJsonSchema),
+  createUserJson
 )
 
 router.get(

@@ -1,30 +1,6 @@
 const multer = require("multer")
-const path = require("path")
-const fs = require("fs")
 
-const uploadDir = process.env.UPLOAD_PATH || "uploads"
-const uploadPath = path.isAbsolute(uploadDir)
-  ? uploadDir
-  : path.join(__dirname, "..", uploadDir)
-
-if (!fs.existsSync(uploadPath)) {
-  fs.mkdirSync(uploadPath)
-}
-
-const storage = multer.diskStorage({
-
-  destination: (req, file, cb) => {
-    cb(null, uploadPath)
-  },
-
-  filename: (req, file, cb) => {
-
-    const uniqueName = Date.now() + "-" + file.originalname
-    cb(null, uniqueName)
-
-  }
-
-})
+const storage = multer.memoryStorage()
 
 const upload = multer({
   storage,
