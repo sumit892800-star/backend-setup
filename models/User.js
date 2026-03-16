@@ -12,9 +12,10 @@ const userSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
-    password:{
+  password:{
     type:String,
-    required:true
+    required:true,
+    select:false
   },
 
   role:{
@@ -35,5 +36,8 @@ const userSchema = new mongoose.Schema({
   ]
 
 }, { timestamps: true })
+
+userSchema.index({ role: 1 })
+userSchema.index({ name: "text", email: "text" })
 
 module.exports = mongoose.model("User", userSchema)

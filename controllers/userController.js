@@ -82,6 +82,7 @@ exports.getUsers = async (req, res, next) => {
       User.countDocuments(filter)
     ])
 
+    const ttl = parseInt(process.env.CACHE_TTL, 10) || 60
     await redis.set(
       cacheKey,
       JSON.stringify({
@@ -91,7 +92,7 @@ exports.getUsers = async (req, res, next) => {
         limit
       }),
       "EX",
-      60
+      ttl
     )
 
     res.json({

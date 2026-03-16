@@ -11,6 +11,15 @@ const {
 const hashToken = (token) => {
   return crypto.createHash("sha256").update(token).digest("hex")
 }
+
+const getRefreshCookieOptions = () => {
+  const isProd = process.env.NODE_ENV === "production"
+  return {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? "lax" : "strict"
+  }
+}
 exports.register = async (req,res,next)=>{
 
   try{
@@ -51,7 +60,7 @@ exports.login = async (req,res,next)=>{
 
     const {email,password} = req.body
 
-    const user = await User.findOne({email})
+    const user = await User.findOne({email}).select("+password")
 
     if(!user){
       return res.status(400).json({
@@ -73,11 +82,7 @@ exports.login = async (req,res,next)=>{
     user.refreshTokenHash = hashToken(refreshToken)
     await user.save()
 
-    res.cookie("refreshToken",refreshToken,{
-      httpOnly:true,
-      secure:false,
-      sameSite:"strict"
-    })
+    res.cookie("refreshToken", refreshToken, getRefreshCookieOptions())
 
     res.json({
       accessToken
@@ -90,7 +95,6 @@ exports.login = async (req,res,next)=>{
 }
 
 exports.refreshToken = async (req,res)=>{
-  console.log("Refresh token called", req.cookies)
 
   const token = req.cookies.refreshToken
 
@@ -127,6 +131,12 @@ exports.refreshToken = async (req,res)=>{
       {expiresIn:process.env.ACCESS_TOKEN_EXPIRE}
     )
 
+    const newRefreshToken = generateRefreshToken(user)
+    user.refreshTokenHash = hashToken(newRefreshToken)
+    await user.save()
+
+    res.cookie("refreshToken", newRefreshToken, getRefreshCookieOptions())
+
     res.json({accessToken})
 
   }catch(err){
@@ -137,4 +147,19 @@ exports.refreshToken = async (req,res)=>{
 
   }
 
+}
+
+exports.logout = async (req, res) => {
+  const token = req.cookies.refreshToken
+
+  if (token) {
+    const hashed = hashToken(token)
+    await User.findOneAndUpdate(
+      { refreshTokenHash: hashed },
+      { $unset: { refreshTokenHash: 1 } }
+    )
+  }
+
+  res.clearCookie("refreshToken", getRefreshCookieOptions())
+  res.json({ success: true, message: "Logged out" })
 }

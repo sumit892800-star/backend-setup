@@ -2,7 +2,10 @@ const multer = require("multer")
 const path = require("path")
 const fs = require("fs")
 
-const uploadPath = path.join(__dirname, "../uploads")
+const uploadDir = process.env.UPLOAD_PATH || "uploads"
+const uploadPath = path.isAbsolute(uploadDir)
+  ? uploadDir
+  : path.join(__dirname, "..", uploadDir)
 
 if (!fs.existsSync(uploadPath)) {
   fs.mkdirSync(uploadPath)
@@ -26,7 +29,7 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: {
-    fileSize: 20 * 1024 * 1024,
+    fileSize: parseInt(process.env.MAX_FILE_SIZE, 10) || 20 * 1024 * 1024,
     files: 5
   },
   fileFilter: (req, file, cb) => {
