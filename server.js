@@ -21,7 +21,11 @@ const cookieParser = require("cookie-parser")
 
 connectDB()
 
-app.use(cors())
+app.use(cors({
+  origin: "http://localhost:5173", // EXACT frontend origin
+  credentials: true
+}));
+
 app.use(express.json())
 const isProd = process.env.NODE_ENV === "production"
 app.use(helmet(isProd ? {
