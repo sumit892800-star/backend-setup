@@ -2,6 +2,7 @@ const bcrypt = require("bcryptjs")
 const User = require("../models/User")
 const jwt = require("jsonwebtoken")
 const crypto = require("crypto")
+const { OAuth2Client } = require("google-auth-library")
 
 const {
   generateAccessToken,
@@ -20,6 +21,8 @@ const getRefreshCookieOptions = () => {
     sameSite: isProd ? "lax" : "strict"
   }
 }
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
 exports.register = async (req,res,next)=>{
 
   try{
@@ -92,6 +95,75 @@ exports.login = async (req,res,next)=>{
     next(err)
   }
 
+}
+
+exports.googleLogin = async (req, res, next) => {
+  try {
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      return res.status(500).json({
+        message: "GOOGLE_CLIENT_ID is not configured"
+      })
+    }
+
+    const { idToken } = req.body
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID
+    })
+
+    const payload = ticket.getPayload()
+    if (!payload || !payload.email) {
+      return res.status(400).json({
+        message: "Invalid Google token"
+      })
+    }
+
+    if (payload.email_verified === false) {
+      return res.status(400).json({
+        message: "Google email is not verified"
+      })
+    }
+
+    let user = await User.findOne({ email: payload.email })
+    if (!user) {
+      user = await User.create({
+        name: payload.name || payload.email.split("@")[0],
+        email: payload.email,
+        authProvider: "GOOGLE",
+        googleId: payload.sub,
+        avatars: payload.picture ? [payload.picture] : []
+      })
+    } else {
+      let changed = false
+      if (!user.googleId && payload.sub) {
+        user.googleId = payload.sub
+        changed = true
+      }
+      if (!user.avatars || user.avatars.length === 0) {
+        if (payload.picture) {
+          user.avatars = [payload.picture]
+          changed = true
+        }
+      }
+      if (changed) {
+        await user.save()
+      }
+    }
+
+    const accessToken = generateAccessToken(user)
+    const refreshToken = generateRefreshToken(user)
+
+    user.refreshTokenHash = hashToken(refreshToken)
+    await user.save()
+
+    res.cookie("refreshToken", refreshToken, getRefreshCookieOptions())
+
+    res.json({
+      accessToken
+    })
+  } catch (err) {
+    next(err)
+  }
 }
 
 exports.refreshToken = async (req,res)=>{
